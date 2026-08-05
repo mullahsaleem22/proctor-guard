@@ -1,3 +1,5 @@
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.38.0/dist/esm/index.js';
+
 /**
  * ProctorGuard - Standalone Bundled Script (Mobile + Examiner Auth Optimized)
  * Combines StorageManager, AuthManager, ExamTimer, ProctorEngine, and App.
@@ -140,6 +142,18 @@ class StorageManager {
     const submissions = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS) || '[]');
     submissions.unshift(submission);
     localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(submissions));
+    // Persist to Supabase (non‑blocking)
+    supabase.from('submissions').insert({
+      student_name: submission.studentName,
+      exam_id: submission.examId,
+      timestamp: submission.timestamp,
+      score: submission.score,
+      earned_points: submission.earnedPoints,
+      total_points: submission.totalPoints,
+      time_spent_seconds: submission.timeSpentSeconds,
+      violations_count: submission.violationsCount,
+      submission_reason: submission.submissionReason
+    }).catch(() => {});
   }
 }
 
@@ -467,6 +481,16 @@ class ProctorEngine {
       violation = storageObj.logViolation(violation);
     }
 
+    // Also persist violation to Supabase (non‑blocking)
+    supabase.from('proctor_logs').insert({
+      student_name: this.studentName,
+      type,
+      severity,
+      details,
+      strikes_count: this.strikes,
+      timestamp: new Date().toISOString()
+    }).catch(() => {});
+
     this.lastViolation = violation;
 
     if (this.onViolation) {
@@ -703,6 +727,10 @@ class App {
   loadInitialState() {
     StorageManager.initStorage();
     this.currentExam = StorageManager.getExams()[0];
+    // Schedule daily purge of old submissions
+    this.purgeOldSubmissions();
+    // Also set interval to run every 24h just in case the app stays open
+    setInterval(() => this.purgeOldSubmissions(), 24 * 60 * 60 * 1000);
 
     if (this.currentExam) {
       this.onboardExamTitle.textContent = this.currentExam.title;
@@ -979,6 +1007,9 @@ class App {
       violationsCount: strikes,
       submissionReason: reason
     };
+
+    // Persist submission to Supabase (non-blocking)
+    supabase.from('proctor_submissions').insert(submission).catch(() => {});
     StorageManager.saveSubmission(submission);
 
     this.resultScoreNum.textContent = `${scorePercentage}%`;
@@ -992,6 +1023,15 @@ class App {
     this.resultViolationsCount.textContent = `${strikes} Strikes`;
 
     this.switchView('results');
+  }
+
+  // Auto-purge submissions older than 7 days (run once daily)
+  purgeOldSubmissions() {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    supabase.from('proctor_submissions')
+      .delete()
+      .lt('timestamp', sevenDaysAgo)
+      .catch(() => {});
   }
 
   renderAdminAuditLogs() {
