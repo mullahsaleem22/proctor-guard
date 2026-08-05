@@ -1,0 +1,28 @@
+{
+  "name": "proctor-guard",
+  "private": false,
+  "version": "1.0.0",
+  "description": "Free and Open-Source Secure Online Exam & Proctoring Platform",
+  "license": "MIT",
+  "author": "Open Source Community",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.2.0"
+  },
+  "keywords": [
+    "exam",
+    "proctoring",
+    "anti-cheating",
+    "stopwatch",
+    "timer",
+    "education",
+    "open-source",
+    "fullscreen-api",
+    "visibility-api"
+  ]
+}

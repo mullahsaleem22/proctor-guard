@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ProctorGuard - Secure Student Assessment Platform</title>
+  <meta name="description" content="Secure online exam platform with real-time proctoring, stopwatch timing, screen lock, and anti-cheating protections.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Dynamic Security Watermark Layer -->
+  <canvas id="watermarkCanvas"></canvas>
+
+  <!-- Focus Loss / Security Blur Overlay -->
+  <div class="blur-overlay" id="blurOverlay">
+    <div class="security-shield-icon">🛡️</div>
+    <h2 style="font-size: 1.8rem; font-weight: 700; margin-bottom: 0.5rem; color: #ef4444;">EXAM CONTENT OBFUSCATED</h2>
+    <p style="color: #94a3b8; max-width: 500px;">Window focus lost or tab switched. Return focus to the exam window immediately to avoid auto-submission.</p>
+  </div>
+
+  <!-- Main App Header -->
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-icon">🛡️</div>
+      <span>Proctor<span style="color: var(--accent-cyan);">Guard</span></span>
+    </div>
+
+    <div class="header-status-group">
+      <!-- Live Security Badge -->
+      <div class="security-badge" id="securityBadge">
+        <span class="pulse-dot"></span>
+        <span id="securityBadgeText">PROCTORING ACTIVE</span>
+      </div>
+
+      <!-- Live Stopwatch / Timer Display -->
+      <div class="timer-container" id="timerContainer" style="display: none;">
+        <span id="timerIcon">⏱️</span>
+        <span id="timerDisplay">00:00</span>
+      </div>
+    </div>
+
+    <!-- View Switcher (Student Mode vs Admin Dashboard) -->
+    <div class="view-switch">
+      <button class="switch-btn active" id="btnStudentView">Student Exam Portal</button>
+      <button class="switch-btn" id="btnAdminView">Examiner Dashboard</button>
+    </div>
+  </header>
+
+  <!-- Main Application Workspace -->
+  <main class="app-container">
+
+    <!-- 1. STUDENT ONBOARDING VIEW -->
+    <section class="view-section active" id="viewOnboarding">
+      <div class="card">
+        <div class="onboarding-grid">
+          <div class="exam-intro-card">
+            <span class="badge-tag">Official Assessment</span>
+            <h1 id="onboardExamTitle">Advanced Computer Science Assessment</h1>
+            <p style="color: var(--text-muted); margin-bottom: 1.5rem;" id="onboardExamDesc">
+              Official online evaluation covering Web APIs, Cyber Security, Cryptography, and System Architecture.
+            </p>
+
+            <h3 style="font-size: 1.1rem; margin-bottom: 0.75rem;">🔒 Mandatory Proctoring Protocol & Guidelines:</h3>
+            <ul class="rules-list">
+              <li>
+                <span class="icon">⏱️</span>
+                <span><strong>Timer & Stopwatch:</strong> 15-Minute countdown. Answers auto-submit when timer reaches zero.</span>
+              </li>
+              <li>
+                <span class="icon">🖥️</span>
+                <span><strong>Screen & Tab Lock:</strong> Exam requires browser Fullscreen mode. Tab switching or minimizing logs a strike.</span>
+              </li>
+              <li>
+                <span class="icon">📸</span>
+                <span><strong>Anti-Screenshot Shield:</strong> PrintScreen, DevTools (F12), Ctrl+C/V are strictly blocked and flagged.</span>
+              </li>
+              <li>
+                <span class="icon">⚠️</span>
+                <span><strong>3-Strike Rule:</strong> Reaching 3 proctoring violations results in instant forced exam auto-submission.</span>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Pre-Exam System Diagnostics -->
+          <div class="diagnostic-box">
+            <h3 style="font-size: 1rem; font-weight: 700; color: var(--accent-cyan); border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+              System Readiness Check
+            </h3>
+
+            <div class="diag-item">
+              <span>Fullscreen API</span>
+              <span class="diag-status pass" id="diagFullscreen">✓ Supported</span>
+            </div>
+
+            <div class="diag-item">
+              <span>Tab Visibility Monitor</span>
+              <span class="diag-status pass">✓ Active</span>
+            </div>
+
+            <div class="diag-item">
+              <span>Canvas Watermark Shield</span>
+              <span class="diag-status pass">✓ Ready</span>
+            </div>
+
+            <div class="diag-item">
+              <span>Key Combination Interceptor</span>
+              <span class="diag-status pass">✓ Ready</span>
+            </div>
+
+            <div style="margin-top: 1rem;">
+              <button class="btn btn-primary btn-block" id="btnStartExam">
+                <span>🚀 Enter Fullscreen & Start Exam</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. ACTIVE EXAM VIEW -->
+    <section class="view-section" id="viewActiveExam">
+      <div class="exam-layout">
+        <!-- Question Workspace -->
+        <div class="card question-card">
+          <div class="question-header">
+            <div class="question-number" id="qNumberDisplay">Question 1 of 5</div>
+            <button class="flag-btn" id="btnFlagQuestion">
+              <span id="flagIcon">🚩</span>
+              <span id="flagText">Flag for Review</span>
+            </button>
+          </div>
+
+          <div class="question-text" id="qTextDisplay">
+            Question text loading...
+          </div>
+
+          <!-- Options Container (MCQ or Textbox) -->
+          <div id="qOptionsContainer" class="options-group">
+            <!-- Rendered dynamically -->
+          </div>
+
+          <!-- Exam Footer Navigation -->
+          <div class="exam-footer">
+            <button class="btn btn-secondary" id="btnPrevQ" disabled>← Previous</button>
+            <div style="display: flex; gap: 0.8rem;">
+              <button class="btn btn-secondary" id="btnNextQ">Next →</button>
+              <button class="btn btn-danger" id="btnSubmitExamTrigger">Finish & Submit</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sidebar Palette & Strike Counter -->
+        <div class="sidebar-panel">
+          <!-- Strike Counter Card -->
+          <div class="strike-counter-card">
+            <div class="strike-title">Proctoring Strikes</div>
+            <div class="strike-dots" id="strikeDotsContainer">
+              <div class="strike-dot"></div>
+              <div class="strike-dot"></div>
+              <div class="strike-dot"></div>
+            </div>
+            <p style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.6rem;">
+              Violations: Tab switches, screenshot keys, exiting fullscreen. Max 3 allowed.
+            </p>
+          </div>
+
+          <!-- Question Palette Card -->
+          <div class="card" style="padding: 1.25rem;">
+            <h4 style="font-size: 0.9rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em;">Question Navigator</h4>
+            <div class="palette-grid" id="questionPaletteGrid">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. EXAM RESULTS VIEW -->
+    <section class="view-section" id="viewResults">
+      <div class="card" style="max-width: 800px; margin: 0 auto; text-align: center;">
+        <div class="results-header">
+          <h1 style="font-size: 2rem; margin-bottom: 0.5rem;">Assessment Completed</h1>
+          <p style="color: var(--text-muted);" id="resultsSubtitle">Your answers have been securely submitted and logged.</p>
+          
+          <div class="score-badge">
+            <div class="score-num" id="resultScoreNum">80%</div>
+            <div class="score-label" id="resultScoreLabel">PASSED</div>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 2rem;">
+          <div style="background: rgba(15,23,42,0.6); padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+            <div style="font-size: 0.8rem; color: var(--text-muted);">Total Time Spent</div>
+            <div style="font-size: 1.3rem; font-weight: 700; color: var(--accent-cyan);" id="resultTimeSpent">08:42</div>
+          </div>
+          <div style="background: rgba(15,23,42,0.6); padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+            <div style="font-size: 0.8rem; color: var(--text-muted);">Questions Answered</div>
+            <div style="font-size: 1.3rem; font-weight: 700; color: var(--success);" id="resultAnsweredCount">5 / 5</div>
+          </div>
+          <div style="background: rgba(15,23,42,0.6); padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+            <div style="font-size: 0.8rem; color: var(--text-muted);">Proctoring Violations</div>
+            <div style="font-size: 1.3rem; font-weight: 700; color: var(--danger);" id="resultViolationsCount">0 Strikes</div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="btnRestartDemo">Return to Exam Portal</button>
+      </div>
+    </section>
+
+    <!-- 4. EXAMINER / ADMIN PROCTORING DASHBOARD -->
+    <section class="view-section" id="viewAdminDashboard">
+      <div class="card">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
+          <div>
+            <h1 style="font-size: 1.6rem; font-weight: 700;">Examiner Proctoring & Audit Hub</h1>
+            <p style="color: var(--text-muted); font-size: 0.9rem;">Real-time anti-cheating audit trail, tab switch logs, and student score reports.</p>
+          </div>
+          <button class="btn btn-secondary" id="btnRefreshAdminLogs">🔄 Refresh Audit Log</button>
+        </div>
+
+        <!-- Audit Log Table -->
+        <h3 style="font-size: 1.1rem; margin-top: 1rem; margin-bottom: 0.5rem; color: var(--accent-cyan);">Security Incident Audit Trail</h3>
+        <div class="admin-table-container">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Student</th>
+                <th>Incident Type</th>
+                <th>Severity</th>
+                <th>Violation Detail</th>
+                <th>Strike Count</th>
+              </tr>
+            </thead>
+            <tbody id="adminAuditLogBody">
+              <!-- Rendered dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- SECURITY WARNING MODAL -->
+  <div class="modal-backdrop" id="modalViolation">
+    <div class="modal-card shake">
+      <div class="modal-icon danger">⚠️</div>
+      <h2 class="modal-title" id="violationModalTitle">PROCTORING VIOLATION DETECTED</h2>
+      <p class="modal-desc" id="violationModalDesc">
+        A security violation (tab switch / screenshot attempt) was detected.
+      </p>
+      <div style="margin-bottom: 1.5rem; font-weight: 700; color: var(--warning);" id="violationStrikeText">
+        Strike 1 of 3
+      </div>
+      <button class="btn btn-primary btn-block" id="btnDismissViolationModal">I Understand & Resume Exam</button>
+    </div>
+  </div>
+
+  <!-- SUBMIT CONFIRMATION MODAL -->
+  <div class="modal-backdrop" id="modalSubmitConfirm">
+    <div class="modal-card">
+      <div class="modal-icon warning">📋</div>
+      <h2 class="modal-title">Submit Assessment?</h2>
+      <p class="modal-desc" id="submitConfirmText">Are you sure you want to finish and submit your exam?</p>
+      <div style="display: flex; gap: 1rem;">
+        <button class="btn btn-secondary btn-block" id="btnCancelSubmit">Cancel</button>
+        <button class="btn btn-danger btn-block" id="btnConfirmSubmit">Confirm Submission</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Standalone Bundled Script (Supports direct file:// execution without CORS restrictions) -->
+  <script src="js/bundle.js"></script>
+</body>
+</html>
