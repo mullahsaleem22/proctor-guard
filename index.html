@@ -251,25 +251,25 @@
 
   </main>
 
-  <!-- EXAMINER AUTHENTICATION MODAL (LOGIN / SIGNUP / FORGOT PASSWORD) -->
+  <!-- EXAMINER AUTHENTICATION MODAL (LOGIN ONLY) -->
   <div class="modal-backdrop" id="modalExaminerAuth">
     <div class="modal-card" style="max-width: 440px;">
       
-      <!-- AUTH HEADER & TAB SWITCH -->
+      <!-- AUTH HEADER -->
       <div style="margin-bottom: 1.25rem;">
         <div class="modal-icon warning" style="background: rgba(99, 102, 241, 0.15); color: var(--accent-primary); border-color: rgba(99, 102, 241, 0.3);">🔑</div>
         <h2 class="modal-title" id="authTitle">Examiner Verification</h2>
-        <p class="modal-desc" id="authSubtitle" style="margin-bottom: 1rem;">Log in with your institutional credentials to access student logs.</p>
+        <p class="modal-desc" id="authSubtitle" style="margin-bottom: 1rem;">Enter your authorized credentials to access the Examiner Dashboard.</p>
       </div>
 
       <!-- ALERT MESSAGE BADGE -->
       <div class="auth-alert-badge" id="authAlertBadge"></div>
 
-      <!-- 1. LOGIN FORM -->
+      <!-- LOGIN FORM -->
       <form id="formExaminerLogin">
         <div class="form-group">
-          <label class="form-label" for="loginEmail">Institutional Email</label>
-          <input type="email" id="loginEmail" class="form-input" placeholder="examiner@futurestars.edu" required autocomplete="username">
+          <label class="form-label" for="loginUsername">Username</label>
+          <input type="text" id="loginUsername" class="form-input" placeholder="Enter your username" required autocomplete="username">
         </div>
 
         <div class="form-group">
@@ -280,93 +280,10 @@
           </div>
         </div>
 
-        <div class="form-footer-row">
-          <label class="checkbox-label">
-            <input type="checkbox" id="chkRememberMe" checked> Remember me
-          </label>
-          <button type="button" class="link-btn" id="btnShowForgotPassword">Forgot Password?</button>
-        </div>
+        <button type="submit" class="btn btn-primary btn-block" style="margin-top: 0.5rem;">Log In to Dashboard</button>
 
-        <button type="submit" class="btn btn-primary btn-block">Log In to Dashboard</button>
-
-        <div style="margin-top: 1.25rem; font-size: 0.85rem; color: var(--text-muted);">
-          Don't have an examiner account? 
-          <button type="button" class="link-btn" id="btnShowSignup">Create Account</button>
-        </div>
-
-        <div style="margin-top: 1rem; padding: 0.6rem; background: rgba(15, 23, 42, 0.6); border-radius: var(--radius-sm); font-size: 0.75rem; color: var(--text-dim);">
-          💡 <strong>Demo Credentials:</strong><br>Email: <code>examiner@futurestars.edu</code> \| Password: <code>password123</code>
-        </div>
-      </form>
-
-      <!-- 2. SIGNUP FORM -->
-      <form id="formExaminerSignup" style="display: none;">
-        <div class="form-group">
-          <label class="form-label" for="signupName">Full Name</label>
-          <input type="text" id="signupName" class="form-input" placeholder="Dr. Sarah Jenkins" required>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="signupEmail">Institutional Email</label>
-          <input type="email" id="signupEmail" class="form-input" placeholder="s.jenkins@futurestars.edu" required>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="signupDept">Department</label>
-          <select id="signupDept" class="form-select">
-            <option value="Computer Science & Cyber Security">Computer Science & Cyber Security</option>
-            <option value="Mathematics & Data Science">Mathematics & Data Science</option>
-            <option value="Engineering & Physics">Engineering & Physics</option>
-            <option value="Medical & Health Sciences">Medical & Health Sciences</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="signupPassword">Create Password</label>
-          <input type="password" id="signupPassword" class="form-input" placeholder="At least 6 characters" required minlength="6">
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="signupConfirmPassword">Confirm Password</label>
-          <input type="password" id="signupConfirmPassword" class="form-input" placeholder="Re-enter password" required minlength="6">
-        </div>
-
-        <button type="submit" class="btn btn-primary btn-block">Register Examiner Account</button>
-
-        <div style="margin-top: 1.25rem; font-size: 0.85rem; color: var(--text-muted);">
-          Already registered? 
-          <button type="button" class="link-btn" id="btnShowLoginFromSignup">Log In</button>
-        </div>
-      </form>
-
-      <!-- 3. FORGOT PASSWORD FORM -->
-      <form id="formExaminerForgot" style="display: none;">
-        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem;">
-          Enter your registered email address and we'll generate a secure Password Reset Verification Code.
-        </p>
-
-        <div class="form-group">
-          <label class="form-label" for="forgotEmail">Institutional Email</label>
-          <input type="email" id="forgotEmail" class="form-input" placeholder="examiner@futurestars.edu" required>
-        </div>
-
-        <div id="stepResetPassword" style="display: none;">
-          <div class="form-group">
-            <label class="form-label" for="resetOtp">Enter 6-Digit Security Code</label>
-            <input type="text" id="resetOtp" class="form-input" placeholder="123456" maxlength="6" style="letter-spacing: 0.3em; font-family: var(--font-mono); text-align: center;">
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="newPassword">New Password</label>
-            <input type="password" id="newPassword" class="form-input" placeholder="Enter new password" minlength="6">
-          </div>
-        </div>
-
-        <button type="submit" class="btn btn-primary btn-block" id="btnForgotSubmit">Send Verification Code</button>
-
-        <div style="margin-top: 1.25rem; font-size: 0.85rem; color: var(--text-muted);">
-          Back to 
-          <button type="button" class="link-btn" id="btnShowLoginFromForgot">Log In</button>
+        <div style="margin-top: 1.25rem; padding: 0.7rem; background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: var(--radius-sm); font-size: 0.78rem; color: var(--text-dim); text-align: center;">
+          🔒 Access restricted to authorized examiners only.
         </div>
       </form>
 
