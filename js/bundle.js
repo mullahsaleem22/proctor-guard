@@ -1,6 +1,6 @@
 /**
- * ProctorGuard - Standalone Bundled Script (Mobile + Desktop Optimized)
- * Combines StorageManager, ExamTimer, ProctorEngine, and App for zero-CORS file:// compatibility.
+ * ProctorGuard - Standalone Bundled Script (Mobile + Examiner Auth Optimized)
+ * Combines StorageManager, AuthManager, ExamTimer, ProctorEngine, and App.
  */
 
 // 1. STORAGE MANAGER
@@ -8,7 +8,18 @@ const STORAGE_KEYS = {
   EXAMS: 'proctor_guard_exams',
   ACTIVE_SESSION: 'proctor_guard_active_session',
   PROCTOR_LOGS: 'proctor_guard_logs',
-  SUBMISSIONS: 'proctor_guard_submissions'
+  SUBMISSIONS: 'proctor_guard_submissions',
+  EXAMINERS: 'proctor_guard_examiners',
+  EXAMINER_TOKEN: 'proctor_guard_examiner_token'
+};
+
+const DEFAULT_EXAMINER = {
+  id: 'ex-001',
+  name: 'Dr. Sarah Jenkins',
+  email: 'examiner@futurestars.edu',
+  password: 'password123',
+  department: 'Computer Science & Cyber Security',
+  createdAt: new Date().toISOString()
 };
 
 const DEFAULT_MOCK_EXAM = {
@@ -91,29 +102,14 @@ class StorageManager {
     if (!localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)) {
       localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify([]));
     }
+    if (!localStorage.getItem(STORAGE_KEYS.EXAMINERS)) {
+      localStorage.setItem(STORAGE_KEYS.EXAMINERS, JSON.stringify([DEFAULT_EXAMINER]));
+    }
   }
 
   static getExams() {
     this.initStorage();
     return JSON.parse(localStorage.getItem(STORAGE_KEYS.EXAMS) || '[]');
-  }
-
-  static getExamById(id) {
-    const exams = this.getExams();
-    return exams.find(e => e.id === id) || exams[0];
-  }
-
-  static saveActiveSession(sessionData) {
-    localStorage.setItem(STORAGE_KEYS.ACTIVE_SESSION, JSON.stringify(sessionData));
-  }
-
-  static getActiveSession() {
-    const data = localStorage.getItem(STORAGE_KEYS.ACTIVE_SESSION);
-    return data ? JSON.parse(data) : null;
-  }
-
-  static clearActiveSession() {
-    localStorage.removeItem(STORAGE_KEYS.ACTIVE_SESSION);
   }
 
   static logViolation(violation) {
@@ -144,18 +140,139 @@ class StorageManager {
     const submissions = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS) || '[]');
     submissions.unshift(submission);
     localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(submissions));
-    this.clearActiveSession();
-  }
-
-  static getSubmissions() {
-    this.initStorage();
-    return JSON.parse(localStorage.getItem(STORAGE_KEYS.SUBMISSIONS) || '[]');
   }
 }
 
 window.StorageManager = StorageManager;
 
-// 2. EXAM TIMER
+// 2. EXAMINER AUTHENTICATION ENGINE
+class AuthManager {
+  static getExaminers() {
+    StorageManager.initStorage();
+    return JSON.parse(localStorage.getItem(STORAGE_KEYS.EXAMINERS) || '[]');
+  }
+
+  static saveExaminers(examiners) {
+    localStorage.setItem(STORAGE_KEYS.EXAMINERS, JSON.stringify(examiners));
+  }
+
+  static getCurrentUser() {
+    const token = localStorage.getItem(STORAGE_KEYS.EXAMINER_TOKEN);
+    if (!token) return null;
+    try {
+      const session = JSON.parse(token);
+      return session.user || null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  static login(email, password) {
+    const examiners = this.getExaminers();
+    const cleanEmail = email.trim().toLowerCase();
+    const user = examiners.find(e => e.email.toLowerCase() === cleanEmail && e.password === password);
+
+    if (!user) {
+      throw new Error('Invalid email or password. Please check your credentials.');
+    }
+
+    const session = {
+      token: 'tok-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6),
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        department: user.department
+      },
+      loginTime: new Date().toISOString()
+    };
+
+    localStorage.setItem(STORAGE_KEYS.EXAMINER_TOKEN, JSON.stringify(session));
+    return session.user;
+  }
+
+  static signup({ name, email, department, password }) {
+    const examiners = this.getExaminers();
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (examiners.some(e => e.email.toLowerCase() === cleanEmail)) {
+      throw new Error('An examiner account with this email address already exists.');
+    }
+
+    const newExaminer = {
+      id: 'ex-' + Date.now(),
+      name: name.trim(),
+      email: cleanEmail,
+      department: department || 'Computer Science',
+      password: password,
+      createdAt: new Date().toISOString()
+    };
+
+    examiners.push(newExaminer);
+    this.saveExaminers(examiners);
+
+    // Auto Login after registration
+    return this.login(cleanEmail, password);
+  }
+
+  static requestPasswordResetOTP(email) {
+    const examiners = this.getExaminers();
+    const cleanEmail = email.trim().toLowerCase();
+    const user = examiners.find(e => e.email.toLowerCase() === cleanEmail);
+
+    if (!user) {
+      throw new Error('No examiner account found with this email address.');
+    }
+
+    // Generate random 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    localStorage.setItem('proctor_reset_otp_' + cleanEmail, JSON.stringify({
+      otp,
+      expiresAt: Date.now() + 10 * 60 * 1000 // 10 mins
+    }));
+
+    return otp;
+  }
+
+  static resetPassword(email, otp, newPassword) {
+    const cleanEmail = email.trim().toLowerCase();
+    const storedOtpData = localStorage.getItem('proctor_reset_otp_' + cleanEmail);
+
+    if (!storedOtpData) {
+      throw new Error('Verification code has expired or is invalid. Please request a new code.');
+    }
+
+    const { otp: validOtp, expiresAt } = JSON.parse(storedOtpData);
+
+    if (Date.now() > expiresAt) {
+      localStorage.removeItem('proctor_reset_otp_' + cleanEmail);
+      throw new Error('Verification code has expired. Please request a new code.');
+    }
+
+    if (otp.trim() !== validOtp) {
+      throw new Error('Incorrect 6-digit security code. Please check your email.');
+    }
+
+    const examiners = this.getExaminers();
+    const userIdx = examiners.findIndex(e => e.email.toLowerCase() === cleanEmail);
+
+    if (userIdx === -1) throw new Error('Examiner account not found.');
+
+    examiners[userIdx].password = newPassword;
+    this.saveExaminers(examiners);
+    localStorage.removeItem('proctor_reset_otp_' + cleanEmail);
+
+    return true;
+  }
+
+  static logout() {
+    localStorage.removeItem(STORAGE_KEYS.EXAMINER_TOKEN);
+  }
+}
+
+window.AuthManager = AuthManager;
+
+// 3. EXAM TIMER
 class ExamTimer {
   constructor({ durationMinutes, mode = 'countdown', onTick, onWarning, onExpire }) {
     this.totalSeconds = (durationMinutes || 15) * 60;
@@ -227,14 +344,9 @@ class ExamTimer {
     }
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   }
-
-  toggleMode() {
-    this.mode = this.mode === 'countdown' ? 'stopwatch' : 'countdown';
-    return this.mode;
-  }
 }
 
-// 3. PROCTOR ENGINE (Mobile + Desktop Optimized)
+// 4. PROCTOR ENGINE
 class ProctorEngine {
   constructor({ studentName = 'Alex Johnson (STU-8842)', maxStrikes = 3, onViolation, onStrikeLimitExceeded }) {
     this.studentName = studentName;
@@ -428,7 +540,6 @@ class ProctorEngine {
     this.strikes++;
 
     const storageObj = window.StorageManager || (typeof StorageManager !== 'undefined' ? StorageManager : null);
-    
     let violation = {
       studentName: this.studentName,
       type,
@@ -491,7 +602,7 @@ class ProctorEngine {
   }
 }
 
-// 4. MAIN APP ORCHESTRATOR
+// 5. MAIN APP ORCHESTRATOR & AUTH INTEGRATION
 class App {
   constructor() {
     this.currentExam = null;
@@ -505,6 +616,7 @@ class App {
 
     this.initDOM();
     this.bindEvents();
+    this.bindAuthEvents();
     this.loadInitialState();
   }
 
@@ -523,6 +635,12 @@ class App {
     this.timerContainer = document.getElementById('timerContainer');
     this.timerDisplay = document.getElementById('timerDisplay');
 
+    // Examiner Header Badge
+    this.examinerProfileBadge = document.getElementById('examinerProfileBadge');
+    this.examinerAvatar = document.getElementById('examinerAvatar');
+    this.examinerName = document.getElementById('examinerName');
+    this.btnLogoutExaminer = document.getElementById('btnLogoutExaminer');
+
     this.onboardExamTitle = document.getElementById('onboardExamTitle');
     this.onboardExamDesc = document.getElementById('onboardExamDesc');
     this.btnStartExam = document.getElementById('btnStartExam');
@@ -539,6 +657,37 @@ class App {
     this.strikeDotsContainer = document.getElementById('strikeDotsContainer');
     this.btnSubmitExamTrigger = document.getElementById('btnSubmitExamTrigger');
 
+    // Auth Modal DOM
+    this.modalExaminerAuth = document.getElementById('modalExaminerAuth');
+    this.authTitle = document.getElementById('authTitle');
+    this.authSubtitle = document.getElementById('authSubtitle');
+    this.authAlertBadge = document.getElementById('authAlertBadge');
+
+    this.formExaminerLogin = document.getElementById('formExaminerLogin');
+    this.loginEmail = document.getElementById('loginEmail');
+    this.loginPassword = document.getElementById('loginPassword');
+    this.btnToggleLoginPassword = document.getElementById('btnToggleLoginPassword');
+    this.btnShowForgotPassword = document.getElementById('btnShowForgotPassword');
+    this.btnShowSignup = document.getElementById('btnShowSignup');
+
+    this.formExaminerSignup = document.getElementById('formExaminerSignup');
+    this.signupName = document.getElementById('signupName');
+    this.signupEmail = document.getElementById('signupEmail');
+    this.signupDept = document.getElementById('signupDept');
+    this.signupPassword = document.getElementById('signupPassword');
+    this.signupConfirmPassword = document.getElementById('signupConfirmPassword');
+    this.btnShowLoginFromSignup = document.getElementById('btnShowLoginFromSignup');
+
+    this.formExaminerForgot = document.getElementById('formExaminerForgot');
+    this.forgotEmail = document.getElementById('forgotEmail');
+    this.stepResetPassword = document.getElementById('stepResetPassword');
+    this.resetOtp = document.getElementById('resetOtp');
+    this.newPassword = document.getElementById('newPassword');
+    this.btnForgotSubmit = document.getElementById('btnForgotSubmit');
+    this.btnShowLoginFromForgot = document.getElementById('btnShowLoginFromForgot');
+    this.btnCloseAuthModal = document.getElementById('btnCloseAuthModal');
+
+    // Modals
     this.modalViolation = document.getElementById('modalViolation');
     this.violationModalTitle = document.getElementById('violationModalTitle');
     this.violationModalDesc = document.getElementById('violationModalDesc');
@@ -563,10 +712,7 @@ class App {
 
   bindEvents() {
     this.btnStudentView.addEventListener('click', () => this.switchView('onboarding'));
-    this.btnAdminView.addEventListener('click', () => {
-      this.switchView('admin');
-      this.renderAdminAuditLogs();
-    });
+    this.btnAdminView.addEventListener('click', () => this.handleAdminDashboardAccess());
 
     this.btnStartExam.addEventListener('click', () => this.startExam());
     this.btnPrevQ.addEventListener('click', () => this.navigateQuestion(-1));
@@ -590,6 +736,147 @@ class App {
     this.btnRefreshAdminLogs.addEventListener('click', () => this.renderAdminAuditLogs());
   }
 
+  bindAuthEvents() {
+    // Password visibility toggle
+    this.btnToggleLoginPassword.addEventListener('click', () => {
+      const type = this.loginPassword.type === 'password' ? 'text' : 'password';
+      this.loginPassword.type = type;
+      this.btnToggleLoginPassword.textContent = type === 'password' ? '👁️' : '🔒';
+    });
+
+    // Form View Toggles
+    this.btnShowSignup.addEventListener('click', () => this.showAuthForm('signup'));
+    this.btnShowForgotPassword.addEventListener('click', () => this.showAuthForm('forgot'));
+    this.btnShowLoginFromSignup.addEventListener('click', () => this.showAuthForm('login'));
+    this.btnShowLoginFromForgot.addEventListener('click', () => this.showAuthForm('login'));
+    this.btnCloseAuthModal.addEventListener('click', () => this.modalExaminerAuth.classList.remove('active'));
+
+    // Handle Login Submit
+    this.formExaminerLogin.addEventListener('submit', (e) => {
+      e.preventDefault();
+      try {
+        const user = AuthManager.login(this.loginEmail.value, this.loginPassword.value);
+        this.showAuthAlert('Login successful! Redirecting to Dashboard...', 'success');
+        setTimeout(() => {
+          this.modalExaminerAuth.classList.remove('active');
+          this.updateExaminerProfileUI(user);
+          this.switchView('admin');
+          this.renderAdminAuditLogs();
+        }, 800);
+      } catch (err) {
+        this.showAuthAlert(err.message, 'error');
+      }
+    });
+
+    // Handle Signup Submit
+    this.formExaminerSignup.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (this.signupPassword.value !== this.signupConfirmPassword.value) {
+        this.showAuthAlert('Passwords do not match. Please try again.', 'error');
+        return;
+      }
+      try {
+        const user = AuthManager.signup({
+          name: this.signupName.value,
+          email: this.signupEmail.value,
+          department: this.signupDept.value,
+          password: this.signupPassword.value
+        });
+        this.showAuthAlert('Registration successful! Logging in...', 'success');
+        setTimeout(() => {
+          this.modalExaminerAuth.classList.remove('active');
+          this.updateExaminerProfileUI(user);
+          this.switchView('admin');
+          this.renderAdminAuditLogs();
+        }, 800);
+      } catch (err) {
+        this.showAuthAlert(err.message, 'error');
+      }
+    });
+
+    // Handle Forgot Password / Reset
+    let forgotStep = 1;
+    this.formExaminerForgot.addEventListener('submit', (e) => {
+      e.preventDefault();
+      try {
+        if (forgotStep === 1) {
+          const otp = AuthManager.requestPasswordResetOTP(this.forgotEmail.value);
+          forgotStep = 2;
+          this.stepResetPassword.style.display = 'block';
+          this.btnForgotSubmit.textContent = 'Reset Password';
+          this.showAuthAlert(`Verification code sent! Demo OTP code is: ${otp}`, 'success');
+        } else {
+          AuthManager.resetPassword(this.forgotEmail.value, this.resetOtp.value, this.newPassword.value);
+          this.showAuthAlert('Password successfully reset! You can now log in.', 'success');
+          setTimeout(() => {
+            forgotStep = 1;
+            this.stepResetPassword.style.display = 'none';
+            this.btnForgotSubmit.textContent = 'Send Verification Code';
+            this.showAuthForm('login');
+          }, 1500);
+        }
+      } catch (err) {
+        this.showAuthAlert(err.message, 'error');
+      }
+    });
+
+    // Logout
+    this.btnLogoutExaminer.addEventListener('click', () => {
+      if (confirm('Are you sure you want to log out of the Examiner Dashboard?')) {
+        AuthManager.logout();
+        this.updateExaminerProfileUI(null);
+        this.switchView('onboarding');
+      }
+    });
+  }
+
+  showAuthForm(formType) {
+    this.formExaminerLogin.style.display = formType === 'login' ? 'block' : 'none';
+    this.formExaminerSignup.style.display = formType === 'signup' ? 'block' : 'none';
+    this.formExaminerForgot.style.display = formType === 'forgot' ? 'block' : 'none';
+    this.authAlertBadge.style.display = 'none';
+
+    if (formType === 'login') {
+      this.authTitle.textContent = 'Examiner Verification';
+      this.authSubtitle.textContent = 'Log in with your institutional credentials to access student logs.';
+    } else if (formType === 'signup') {
+      this.authTitle.textContent = 'Register Examiner Account';
+      this.authSubtitle.textContent = 'Create a verified faculty account to manage proctored exams.';
+    } else if (formType === 'forgot') {
+      this.authTitle.textContent = 'Reset Password';
+      this.authSubtitle.textContent = 'Verify your email identity to set a new password.';
+    }
+  }
+
+  showAuthAlert(msg, type) {
+    this.authAlertBadge.textContent = msg;
+    this.authAlertBadge.className = `auth-alert-badge ${type}`;
+  }
+
+  handleAdminDashboardAccess() {
+    const user = AuthManager.getCurrentUser();
+    if (!user) {
+      this.showAuthForm('login');
+      this.modalExaminerAuth.classList.add('active');
+    } else {
+      this.updateExaminerProfileUI(user);
+      this.switchView('admin');
+      this.renderAdminAuditLogs();
+    }
+  }
+
+  updateExaminerProfileUI(user) {
+    if (user) {
+      this.examinerProfileBadge.style.display = 'flex';
+      this.examinerName.textContent = user.name;
+
+      const initials = user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+      this.examinerAvatar.textContent = initials || 'EX';
+    } else {
+      this.examinerProfileBadge.style.display = 'none';
+    }
+  }
+
   loadInitialState() {
     StorageManager.initStorage();
     this.currentExam = StorageManager.getExams()[0];
@@ -597,6 +884,12 @@ class App {
     if (this.currentExam) {
       this.onboardExamTitle.textContent = this.currentExam.title;
       this.onboardExamDesc.textContent = this.currentExam.description;
+    }
+
+    // Restore Examiner Auth Session if active
+    const user = AuthManager.getCurrentUser();
+    if (user) {
+      this.updateExaminerProfileUI(user);
     }
   }
 
